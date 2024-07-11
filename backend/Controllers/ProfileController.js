@@ -1,4 +1,3 @@
-import { generateRandomNum, imageValidator } from "../utils/helper.js";
 import prisma from "../DB/db.config.js";
 import vine, { errors } from "@vinejs/vine";
 
@@ -6,9 +5,17 @@ class ProfileController {
   static async index(req, res) {
     try {
       const user = req.user;
+      const profile = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
       return res.status(200).json({
         message: "User Fetched!",
-        data: user,
+        data: profile,
       });
     } catch (err) {
       if (err instanceof errors.E_VALIDATION_ERROR) {
@@ -21,35 +28,25 @@ class ProfileController {
       res.status(500).json({ message: err.message });
     }
   }
-  static async store(req, res) {}
-  static async show(req, res) {}
+
   static async update(req, res) {
     try {
       const { id } = req.params;
-      if (!req.files || Object.keys(req.files).length === 0) {
-        return res.status(400).json({ message: "No files were uploaded." });
-      }
-      const profile = req.files.profile;
-      const message = imageValidator(profile?.size, profile.mimetype);
-      console.log(message);
-      if (!message) {
-        return res.status(400).json({ message: message });
-      }
+      const dataToUpdate = { ...req.body };
 
-      const imgExt = profile?.name.split(".");
-
-      const imageName = generateRandomNum() + "." + imgExt[1];
-
-      const uploadPath = process.cwd() + "/public/images/" + imageName;
-      profile.mv(uploadPath, (err) => {
-        if (err) {
-          return res.status(500).json({ message: err.message });
-        }
+      const existingUser = await prisma.user.findUnique({
+        where: { id: Number(id) },
       });
 
+      if (!existingUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      delete dataToUpdate.password
+      delete dataToUpdate.email
       const updatedUser = await prisma.user.update({
-        where: { id:Number(id) },
-        data: { profile: imageName },
+        where: { id: Number(id) },
+        data: dataToUpdate,
       });
 
       return res.json({
@@ -67,7 +64,20 @@ class ProfileController {
       res.status(500).json({ message: err.message });
     }
   }
-  static async destroy(req, res) {}
+  static async destroy(req, res) {
+    try {
+      const { id } = req.params;
+      const user = await prisma.user.findUnique({ where: { id: Number(id) } });
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      await prisma.user.delete({
+        where: { id: Number(id) },
+      });
+      return res.json({ message: "Profile deleted" });
+    } catch (error) {}
+  }
 }
 
 export default ProfileController;

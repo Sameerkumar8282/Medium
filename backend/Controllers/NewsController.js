@@ -17,11 +17,14 @@ class NewsController {
       //not skip the data from 1st page
       const skip = (page - 1) * limit;
 
-      const news = await prisma.news.findMany({
+      const news = await prisma.posts.findMany({
+        where:{
+          published:true
+        },
         skip: skip,
         take: limit,
         include: {
-          user: {
+          author: {
             select: {
               id: true,
               name: true,
@@ -34,22 +37,21 @@ class NewsController {
         id: item.id,
         title: item.title,
         content: item.content,
-        image: item.image,
         user: item.user,
       }));
 
-      const totalCount = await prisma.news.count();
+      const totalCount = await prisma.posts.count();
       const totalPages = Math.ceil(totalCount / limit);
 
       res.status(200).json({
         status: "success",
         data: result,
-        metaData:{
+        metaData: {
           totalPages: totalPages,
           currentPage: page,
           totalNews: totalCount,
-          currentLimit:limit
-        }
+          currentLimit: limit,
+        },
       });
     } catch (error) {
       res
@@ -64,17 +66,14 @@ class NewsController {
     try {
       const validator = vine.compile(newsSchema);
       const payload = await validator.validate(dataToCreate);
-      payload.user_id = user.id;
-      console.log(dataToCreate);
-      const news = await prisma.news.create({
-        data:payload,
+      payload.author_id = user.id;
+      const news = await prisma.posts.create({
+        data: payload,
       });
 
-      
       return res.status(201).json({
         message: "News created successfully",
         data: news,
-       
       });
     } catch (err) {
       if (err instanceof errors.E_VALIDATION_ERROR) {
@@ -82,17 +81,70 @@ class NewsController {
         return res
           .status(400)
           .json({ message: "Validation error", errors: err.messages });
+      }else if (err.code === 'P2002' && err.meta.target.includes('title')) {
+        return res.status(409).json({
+          message: "A post with this title already exists. Please choose a different title."
+        });
       }
       console.log(err);
       res.status(500).json({ message: err.message });
     }
   }
 
-  static async update(req, res) {}
+  static async update(req, res) {
+    try {
+      const id = req.params.id;
+      const user = req.user;
+      const dataToUpdate = { ...req.body };
+      const validator = vine.compile(newsSchema);
+      const payload = await validator.validate(dataToUpdate);
+      const news = await prisma.posts.update({
+        where: { id: Number(id) ,
+          author_id: Number(user.id)
+        },
+        data: payload,
+      });
+      return res.status(200).json({
+        message: "News updated successfully",
+        data: news,
+      });
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ message: error.messages });
+    }
+  }
 
-  static async show(req, res) {}
+  static async show(req, res) {
+    try {
+      const id = req.params.id;
+      const news = await prisma.posts.findUnique({
+        where: { id: Number(id) },
+      });
+      return res.status(200).json({
+        message: "News fetched successfully",
+        data: news,
+      });
+    } catch (error) {
+      console.log(err);
+      res.status(500).json({ message: err.message });
+    }
+  }
 
-  static async destroy(req, res) {}
+  static async destroy(req, res) {
+    try {
+      const id = req.params.id;
+      const news = await prisma.posts.delete({
+        where: { id: id },
+      });
+      return res.status(200).json({
+        message: "News deleted successfully",
+        data: news,
+        });
+    } catch (error) {
+      console.log(err);
+      res.status(500).json({ message: err.message });
+    }
+  }
 }
 
 export default NewsController;
