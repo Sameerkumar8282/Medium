@@ -81,6 +81,28 @@ class AuthController {
       res.status(500).json({ message: err.message });
     }
   }
+
+  static async resetPassword(req,res){
+    try {
+      const userId = req.params.id;
+      const { newPassword } = req.body;
+      const user = await prisma.user.findUnique({ where: { id: Number(userId) } });
+      if (!user) {
+        return res.status(400).json({ message: "User not found" });
+        }
+        const salt = bcrypt.genSaltSync(10);
+        const hash = bcrypt.hashSync(newPassword, salt);
+         await prisma.user.update({
+          where: { id: Number(userId) },
+          data: { password: hash },
+          });
+          return res.status(200).json({ message: "Password updated successfully" });
+      } catch (error) {
+        console.log(error)
+        res.status(500).json({ message: error.message });
+
+    }
+  }
 }
 
 export default AuthController;
