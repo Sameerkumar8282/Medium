@@ -18,8 +18,8 @@ class NewsController {
       const skip = (page - 1) * limit;
 
       const news = await prisma.posts.findMany({
-        where:{
-          published:true
+        where: {
+          published: true
         },
         skip: skip,
         take: limit,
@@ -31,13 +31,17 @@ class NewsController {
             },
           },
         },
+        orderBy: {
+          id: 'desc' // Sort by id in descending order
+        }
       });
       // Map the news to select only the required fields from the news model
       const result = news.map((item) => ({
         id: item.id,
         title: item.title,
         content: item.content,
-        user: item.user,
+        publishedAt:item.updatedAt,
+        user: item.author,
       }));
 
       const totalCount = await prisma.posts.count();
@@ -67,6 +71,7 @@ class NewsController {
       const validator = vine.compile(newsSchema);
       const payload = await validator.validate(dataToCreate);
       payload.author_id = user.id;
+      payload.published = true;
       const news = await prisma.posts.create({
         data: payload,
       });
@@ -119,14 +124,22 @@ class NewsController {
       const id = req.params.id;
       const news = await prisma.posts.findUnique({
         where: { id: Number(id) },
+        include:{
+          author:{
+             select:{
+            id: true,
+            name: true,
+          }
+        }
+      }
       });
       return res.status(200).json({
         message: "News fetched successfully",
         data: news,
       });
     } catch (error) {
-      console.log(err);
-      res.status(500).json({ message: err.message });
+      console.log(error);
+      res.status(500).json({ message: error.message });
     }
   }
 
